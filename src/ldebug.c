@@ -271,6 +271,12 @@ LUA_API int lua_getinfo (lua_State *L, const char *what, lua_Debug *ar) {
 
 #define checkreg(pt,reg)	check((reg) < (pt)->maxstacksize)
 
++static int filterpc (int pc, int jmptarget) {
+  if (pc < jmptarget)  /* is code conditional (inside a jump)? */
+    return -1;  /* cannot know who sets that register */
+  else return pc;  /* current position sets that register */
+}
+
 
 
 static int precheck (const Proto *pt) {
@@ -318,6 +324,7 @@ static Instruction symbexec (const Proto *pt, int lastpc, int reg) {
   int pc;
   int last;  /* stores position of last instruction that changed `reg' */
   last = pt->sizecode-1;  /* points to final return (a `neutral' instruction) */
+  int jmptarget = 0;
   check(precheck(pt));
   for (pc = 0; pc < lastpc; pc++) {
     Instruction i = pt->code[pc];
@@ -431,7 +438,8 @@ static Instruction symbexec (const Proto *pt, int lastpc, int reg) {
         }
         else if (c != 0)
           checkreg(pt, a+c-1);
-        if (reg >= a) last = pc;  /* affect all registers above base */
+        if (reg >= a) 
+          last = pc;  /* affect all registers above base */
         break;
       }
       case OP_RETURN: {
